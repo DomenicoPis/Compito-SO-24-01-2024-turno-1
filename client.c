@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <time.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/sem.h>
@@ -11,40 +12,41 @@
 
 int main() {
 
-    srand(getpid()); // Inizializzo generatore numeri casuali
+    srand(getpid() * time(NULL)); // Inizializzo il seed per numeri casuali
 
     // --- 1. CONNESSIONE ALLE CODE PUBBLICHE ---
-    // Uso le stesse chiavi di start.c e server.c ('a' e 'b')
+    // Uso le stesse chiavi di start.c e server.c ('a' per richieste, 'b' per risposte)
     int id_coda_req = msgget(ftok(".", 'a'), 0);
     int id_coda_res = msgget(ftok(".", 'b'), 0);
 
     if(id_coda_req < 0 || id_coda_res < 0){
-        perror("Errore msgget client");
+        perror("Errore msgget client (start non avviato?)");
         exit(1);
     }
 
-    int numero_valori = 10;
+    // --- 2. PREPARAZIONE DELLA RICHIESTA ---
     msg_init_request req;
+    
+    // CAMPI CORRETTI COME DA TUA INDICAZIONE:
+    req.mtype = 1;                 // Tipo > 0 obbligatorio
+    req.pid_richiesta = getpid();  // Il mio PID (fondamentale per ricevere la risposta)
+    req.numero_valore = 10;        // Quanti valori voglio scambiare
+
+    printf("[CLIENT %d] Invio richiesta (valori: %d)\n", getpid(), req.numero_valore);
+
+    // Invio la richiesta sulla coda 'a'
+    if(msgsnd(id_coda_req, &req, sizeof(msg_init_request) - sizeof(long), 0) < 0) {
+        perror("Errore msgsnd richiesta");
+        exit(1);
+    }
+
+    // --- 3. RICEZIONE DELLA RISPOSTA ---
     msg_init_response res;
 
-    // --- 2. PREPARAZIONE E INVIO RICHIESTA ---
-    req.mtype = 1;              // Tipo messaggio (arbitrario, basta che sia > 0)
-    req.pid_richiesta = getpid();  // Il mio PID (fondamentale per la risposta)
-    req.numero_valori = numero_valori;
-
-    printf("[CLIENT %d] Invio richiesta (num. valori: %d)\n", getpid(), numero_valori);
-
-    // Invio la richiesta
-    if(msgsnd(id_coda_req, &req, sizeof(msg_init_request) - sizeof(long), 0) < 0) {
-        perror("Errore msgsnd");
-        exit(1);
-    }
-
-    // --- 3. RICEZIONE RISPOSTA ---
-    // Attendo un messaggio che abbia come tipo il MIO PID (getpid())
-    // Questo è fondamentale per non leggere le risposte destinate ad altri client!
+    // Attendo un messaggio che abbia come tipo ESATTAMENTE il mio PID
+    // msgrcv(id, &struct, size, TIPO, flag)
     if(msgrcv(id_coda_res, &res, sizeof(msg_init_response) - sizeof(long), getpid(), 0) < 0) {
-        perror("Errore msgrcv");
+        perror("Errore msgrcv risposta");
         exit(1);
     }
 
@@ -52,7 +54,7 @@ int main() {
 
 
     // --- 4. ATTACH ALLA MEMORIA (USO GLI ID RICEVUTI) ---
-    // NON creo nulla, uso gli ID che mi ha mandato il server nella struct 'res'
+    // Non uso IPC_PRIVATE, uso gli ID che mi ha mandato il server
     
     prodcons * p_invio = (prodcons *) shmat(res.id_shm_invio, NULL, 0);
     prodcons * p_ricezione = (prodcons *) shmat(res.id_shm_ricezione, NULL, 0);
@@ -64,23 +66,20 @@ int main() {
 
 
     // --- 5. CICLO DI LAVORO ---
-    for(int i=0; i<numero_valori; i++) {
+    for(int i=0; i < req.numero_valore; i++) {
 
         int valore = rand() % 10;
 
-        // INVIO AL SERVER
-        // Uso l'ID del semaforo ricevuto e il puntatore alla memoria collegata
+        // INVIO AL SERVER (Produco nel buffer di invio)
         produci(res.id_sem_invio, p_invio, valore);
-        printf("[CLIENT %d] Valore inviato: %d\n", getpid(), valore);
+        printf("[CLIENT %d] Inviato: %d\n", getpid(), valore);
 
-        // RICEVO DAL SERVER
+        // RICEVO DAL SERVER (Consumo dal buffer di ricezione)
         int ricevuto = consuma(res.id_sem_ricezione, p_ricezione);
-        printf("[CLIENT %d] Valore ricevuto: %d\n", getpid(), ricevuto);
+        printf("[CLIENT %d] Ricevuto: %d\n", getpid(), ricevuto);
     }
 
     // --- 6. DISTACCO (DETACH) ---
-    // Il client si stacca solo dalla memoria. 
-    // La rimozione (IPC_RMID) la fa il server figlio quando ha finito.
     shmdt(p_invio);
     shmdt(p_ricezione);
 
