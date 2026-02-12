@@ -23,7 +23,7 @@ int main() {
         exit(1);
     }
 
-    int num_valori = 10;
+    int numero_valori = 10;
     msg_init_request req;
     msg_init_response res;
 
@@ -32,7 +32,7 @@ int main() {
     req.pid_richiesta = getpid();  // Il mio PID (fondamentale per la risposta)
     req.numero_valori = numero_valori;
 
-    printf("[CLIENT %d] Invio richiesta (num. valori: %d)\n", getpid(), num_valori);
+    printf("[CLIENT %d] Invio richiesta (num. valori: %d)\n", getpid(), numero_valori);
 
     // Invio la richiesta
     if(msgsnd(id_coda_req, &req, sizeof(msg_init_request) - sizeof(long), 0) < 0) {
