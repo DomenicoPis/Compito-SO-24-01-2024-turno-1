@@ -64,7 +64,7 @@ int main() {
 
 
     // --- 5. CICLO DI LAVORO ---
-    for(int i=0; i<num_valori; i++) {
+    for(int i=0; i<numero_valori; i++) {
 
         int valore = rand() % 10;
 
