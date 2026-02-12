@@ -29,8 +29,8 @@ int main() {
 
     // --- 2. PREPARAZIONE E INVIO RICHIESTA ---
     req.mtype = 1;              // Tipo messaggio (arbitrario, basta che sia > 0)
-    req.pid_client = getpid();  // Il mio PID (fondamentale per la risposta)
-    req.num_valori = num_valori;
+    req.pid_richiesta = getpid();  // Il mio PID (fondamentale per la risposta)
+    req.numero_valori = num_valori;
 
     printf("[CLIENT %d] Invio richiesta (num. valori: %d)\n", getpid(), num_valori);
 
