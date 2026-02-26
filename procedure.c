@@ -44,8 +44,8 @@ void produci(int id_sem, prodcons * p, int valore) {
     p->buffer[p->testa] = valore;
     p->testa = (p->testa + 1) % DIM;
     
-    Signal_Sem(ds_sem, MUTEX_P);
-    Signal_Sem(ds_sem, MESSAGGIO_DISPONIBILE);
+    Signal_Sem(id_sem, MUTEX_P);
+    Signal_Sem(id_sem, MESSAGGIO_DISPONIBILE);
     
 }
 
