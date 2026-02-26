@@ -24,8 +24,6 @@ typedef struct prodcons {
 
 #define SPAZIO_DISPONIBILE 0
 #define MESSAGGIO_DISPONIBILE 1
-#define MUTEX_P 2
-#define MUTEX_C 3
 
 
 int Wait_Sem(int id_sem, int numsem);

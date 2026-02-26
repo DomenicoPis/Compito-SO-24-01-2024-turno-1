@@ -39,12 +39,10 @@ void produci(int id_sem, prodcons * p, int valore) {
 
     /* TBD: Implementare il codice del produttore */
     Wait_Sem(id_sem, SPAZIO_DISPONIBILE);
-    Wait_Sem(id_sem, MUTEX_P);
 
     p->buffer[p->testa] = valore;
     p->testa = (p->testa + 1) % DIM;
     
-    Signal_Sem(id_sem, MUTEX_P);
     Signal_Sem(id_sem, MESSAGGIO_DISPONIBILE);
     
 }
@@ -54,13 +52,11 @@ int consuma(int id_sem, prodcons * p) {
     /* TBD: Implementare il codice del consumatore */
 
     Wait_Sem(id_sem, MESSAGGIO_DISPONIBILE);
-    Wait_Sem(id_sem, MUTEX_C);
 
     int valore;
     valore = p->buffer[p->coda];
     p->coda = (p->coda + 1) % DIM;
 
-    Signal_Sem(id_sem, MUTEX_C);
     Signal_Sem(id_sem, SPAZIO_DISPONIBILE);
 
     return valore;
