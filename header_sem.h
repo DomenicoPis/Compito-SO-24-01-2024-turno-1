@@ -8,10 +8,6 @@
 
 #define DIM 5
 
-#define SPAZIO_DISP 0
-#define MESSAGGIO_DISP 1
-#define MUTEX 2
-
 typedef struct prodcons {
 
     /* TBD: Definire la struttura con 
@@ -19,12 +15,17 @@ typedef struct prodcons {
             di DIM=5 elementi, da condividere
             su shared memory UNIX
      */
+
     int buffer[DIM];
     int testa;
-    int coda;
-    int num_elementi;
+    int coda; 
 
 } prodcons;
+
+#define SPAZIO_DISPONIBILE 0
+#define MESSAGGIO_DISPONIBILE 1
+#define MUTEX_P 2
+#define MUTEX_C 3
 
 
 int Wait_Sem(int id_sem, int numsem);

@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <time.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <sys/sem.h>
@@ -10,79 +9,97 @@
 #include "header_msg.h"
 #include "header_sem.h"
 
+
 int main() {
 
-    srand(getpid() * time(NULL)); // Inizializzo il seed per numeri casuali
+    srand(getpid());
 
-    // --- 1. CONNESSIONE ALLE CODE PUBBLICHE ---
-    // Uso le stesse chiavi di start.c e server.c ('a' per richieste, 'b' per risposte)
-    int id_coda_req = msgget(ftok(".", 'a'), 0);
-    int id_coda_res = msgget(ftok(".", 'b'), 0);
 
-    if(id_coda_req < 0 || id_coda_res < 0){
-        perror("Errore msgget client (start non avviato?)");
+    /* TBD: Ottenere gli identificativi delle code di messaggi */
+
+    int chiave_req = ftok(".", 'a');
+    int id_coda_req = msgget(chiave_req, 0);
+    if(id_coda_req < 0){
+        perror("errore msgget invio");
         exit(1);
     }
 
-    // --- 2. PREPARAZIONE DELLA RICHIESTA ---
+    int chiave_res = ftok(".", 'b');
+    int id_coda_res = msgget(chiave_res, 0);
+    if(id_coda_res < 0){
+        perror("errore msgget risposta");
+        exit(1);
+    }
+
+
+    int num_valori = 10;
+
     msg_init_request req;
-    
-    // CAMPI CORRETTI COME DA TUA INDICAZIONE:
-    req.mtype = 1;                 // Tipo > 0 obbligatorio
-    req.pid_richiesta = getpid();  // Il mio PID (fondamentale per ricevere la risposta)
-    req.numero_valore = 10;        // Quanti valori voglio scambiare
-
-    printf("[CLIENT %d] Invio richiesta (valori: %d)\n", getpid(), req.numero_valore);
-
-    // Invio la richiesta sulla coda 'a'
-    if(msgsnd(id_coda_req, &req, sizeof(msg_init_request) - sizeof(long), 0) < 0) {
-        perror("Errore msgsnd richiesta");
-        exit(1);
-    }
-
-    // --- 3. RICEZIONE DELLA RISPOSTA ---
     msg_init_response res;
 
-    // Attendo un messaggio che abbia come tipo ESATTAMENTE il mio PID
-    // msgrcv(id, &struct, size, TIPO, flag)
-    if(msgrcv(id_coda_res, &res, sizeof(msg_init_response) - sizeof(long), getpid(), 0) < 0) {
-        perror("Errore msgrcv risposta");
+
+    printf("[CLIENT %d] Invio richiesta (num. valori: %d)\n", getpid(), num_valori);
+
+    /* TBD: Inviare il messaggio di richiesta */
+
+    req.mtype = 1;
+    req.numero_valori = num_valori;
+    req.pid_req = getpid();
+
+    int err;
+
+    err = msgsnd(id_coda_req, &req, sizeof(req) - sizeof(long), 0);
+    if(err < 0){
+        perror("errore msgsnd");
+        exit(1);
+    } 
+
+    /* TBD: Ricevere il messaggio di risposta */
+
+    err = msgrcv(id_coda_res, &res, sizeof(res) - sizeof(long), getpid(), 0);
+    if(err < 0){
+        perror("errore msgrcv");
         exit(1);
     }
 
-    printf("[CLIENT %d] Ricevute risorse dal server. Inizio lavoro.\n", getpid());
+    printf("[CLIENT %d] Ricevuto risposta\n", getpid());
 
+    int id_shm_invio = res.id_shm_invio;
+    int id_sem_invio = res.id_sem_invio;
 
-    // --- 4. ATTACH ALLA MEMORIA (USO GLI ID RICEVUTI) ---
-    // Non uso IPC_PRIVATE, uso gli ID che mi ha mandato il server
+    int id_shm_ricezione = res.id_shm_ricezione;
+    int id_sem_ricezione = res.id_sem_ricezione;
     
-    prodcons * p_invio = (prodcons *) shmat(res.id_shm_invio, NULL, 0);
-    prodcons * p_ricezione = (prodcons *) shmat(res.id_shm_ricezione, NULL, 0);
-
-    if (p_invio == (void*)-1 || p_ricezione == (void*)-1) {
-        perror("Errore shmat client");
-        exit(1);
+    /* Faccio l'attach alle due memorie condivise */
+    prodcons * p_invio = (prodcons *)shmat(id_shm_invio, NULL, 0);
+    if (p_invio == (void *)-1) { 
+        perror("Errore shmat invio"); 
+        exit(1); 
     }
 
+    prodcons * p_ricezione = (prodcons *)shmat(id_shm_ricezione, NULL, 0);
+    if (p_ricezione == (void *)-1) { 
+        perror("Errore shmat ricezione"); 
+        exit(1); 
+    }
 
-    // --- 5. CICLO DI LAVORO ---
-    for(int i=0; i < req.numero_valore; i++) {
+    for(int i=0; i<num_valori; i++) {
 
         int valore = rand() % 10;
 
-        // INVIO AL SERVER (Produco nel buffer di invio)
-        produci(res.id_sem_invio, p_invio, valore);
-        printf("[CLIENT %d] Inviato: %d\n", getpid(), valore);
 
-        // RICEVO DAL SERVER (Consumo dal buffer di ricezione)
-        int ricevuto = consuma(res.id_sem_ricezione, p_ricezione);
-        printf("[CLIENT %d] Ricevuto: %d\n", getpid(), ricevuto);
+        produci(id_sem_invio, p_invio, valore);
+
+        printf("[CLIENT %d] Valore inviato: %d\n", getpid(), valore);
+
+
+        int ricevuto = consuma(id_sem_ricezione, p_ricezione);
+
+        printf("[CLIENT %d] Valore ricevuto: %d\n", getpid(), ricevuto);
+
     }
 
-    // --- 6. DISTACCO (DETACH) ---
-    shmdt(p_invio);
-    shmdt(p_ricezione);
 
-    printf("[CLIENT %d] Terminato.\n", getpid());
-    return 0;
+
+
 }
